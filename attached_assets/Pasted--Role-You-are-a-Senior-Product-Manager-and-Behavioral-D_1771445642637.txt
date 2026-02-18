@@ -1,0 +1,48 @@
+**Role:** You are a Senior Product Manager and Behavioral Data Scientist building a React Native / Expo application called "ScrollLab." This app is a TikTok-style video feed designed to research how content velocity impacts ad recall and CTR.
+> 
+> Please generate the code and data structures for the following 4 crucial components. I need actual, usable code and mock data, not just concepts.
+> 
+> **Part 1: The Content Data (Mock JSON)**
+> Create a valid JSON array of 30 video objects to serve as my initial database. 
+> * Use real, working, royalty-free MP4 URLs (e.g., from Pexels, Coverr, or sample video buckets) so the app actually plays video.
+> * Tag 15 of them with `"velocity": "high"` (represent these with fast-paced concepts like sports, racing, or chaotic tech).
+> * Tag 15 of them with `"velocity": "low"` (represent these with calming concepts like nature, slow cooking, or ambient travel).
+> * Include fields for `id`, `url`, `velocity`, and `topic`.
+> 
+> **Part 2: The Ad Data (Mock JSON)**
+> Create a separate JSON array of 6 "Ad" objects. 
+> * 3 should be `"type": "direct_response"` (loud, fast, "Buy Now").
+> * 3 should be `"type": "brand_awareness"` (slow, narrative).
+> * Assign each ad a fake `brand_name` (e.g., "Apex Shoes", "Nova Tech").
+> * Include fields for `id`, `url`, `type`, and `brand_name`.
+> 
+> **Part 3: The Pre-Experiment Questionnaire (React Native UI)**
+> Write a clean Expo React Native component for the onboarding screen. 
+> * It must ask the user: "What kind of content are you in the mood for right now?"
+> * Provide 4 selectable buttons (e.g., Tech, Sports, Nature, Food).
+> * When a user selects a topic and clicks "Start Scrolling", it should save their choice and navigate to the Feed.
+> 
+> **Part 4: The Ad Placement Algorithm (TypeScript/JavaScript Logic)**
+> Write the exact function that merges the Content JSON and Ad JSON to create the user's playlist.
+> * **The Rules:** Filter the Content array based on the user's selected topic from Part 3. Then, loop through the array and insert one Ad object at exactly `index 4`, `index 9`, and `index 14`. 
+> * Return the final merged array that will be fed into the `FlatList`.
+> 
+> **Part 5: The Post-Experiment Brand Recall Survey (React Native UI)**
+> Write the Expo React Native component that forcefully pops up after the user scrolls past index 15.
+> * It must ask: "Which of these brands did you see today?"
+> * It must display 4 multiple-choice buttons. The logic should dynamically pull the `brand_name` of the Ad they actually saw, and mix it with 3 fake decoy brand names.
+> * Include a final screen that says "Simulation Complete" and logs the result.
+
+***
+
+### How this accelerates your workflow:
+By feeding this prompt to an AI, you instantly bypass the hardest part of prototyping. You get a fully functional JSON database of working video links so your app isn't just an empty black screen, and you get the exact mathematical logic to force the ads into the feed precisely when you need them. 
+
+[Image of a JSON data structure for a video feed algorithm]
+
+Once the AI generates this code, your team at Ace Groups can simply drop the files into the Replit/Expo architecture we built in the previous step, and your MBA simulation is practically ready for testing.
+
+**Would you like to review the generated dummy data first, or should we look into how to export this entire project onto a physical mobile device for your first test run?**
+
+[Build a Complete Video Streaming Application | Full Tutorial](https://www.youtube.com/watch?v=QW1Jf86OjfQ)
+This tutorial provides a comprehensive look into structuring the backend logic and data pipelines required for a video-heavy application.

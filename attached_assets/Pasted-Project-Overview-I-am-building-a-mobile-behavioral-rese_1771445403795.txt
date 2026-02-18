@@ -1,0 +1,64 @@
+Project Overview:
+I am building a mobile behavioral research application called "ScrollLab" using React Native and Expo Router. Outwardly, the app functions as a TikTok-style vertical video feed. Inwardly, it is a data-collection tool designed to track how feed velocity impacts ad recall and user engagement.
+
+Please build this app step-by-step following the architectural guidelines below. Do not skip the telemetry requirements.
+
+Tech Stack Requirements:
+
+Frontend: React Native, Expo Router (App Router structure).
+
+Video Playback: Use the expo-video library.
+
+List Rendering: Use FlatList (or @shopify/flash-list if supported) for highly optimized vertical scrolling.
+
+Backend/Database: Use Replit's native PostgreSQL database to store user profiles, video metadata, and telemetry logs.
+
+Step 1: Database Schema Setup
+Create a PostgreSQL database with the following tables:
+
+Users: id (UUID), created_at (Timestamp).
+
+Videos: id (UUID), type (Enum: 'content' or 'ad'), velocity_tag (Enum: 'high' or 'low'), topic (String), video_url (String).
+
+TelemetryLogs: id (UUID), user_id (UUID), video_id (UUID), dwell_time_ms (Integer), is_ad_clicked (Boolean), timestamp (Timestamp).
+
+Step 2: The User Onboarding Flow
+
+Create a clean, dark-themed opening screen.
+
+Generate a simple temporary UUID for the user device upon opening (no email/password auth needed for this experiment).
+
+Display a screen asking the user to select 3 topics of interest from a grid of buttons (e.g., Tech, Comedy, Sports, Fitness). Save this to local state.
+
+Step 3: The Core Infinite Video Feed (Crucial Step)
+
+Create a full-screen vertical swipe UI.
+
+Video Logic: Only the video currently in the center of the viewport should play. When swiped away, the video must pause immediately. Ensure videos loop.
+
+Ad Injection: The feed logic should serve videos matching the user's selected interests. However, hardcode a rule that exactly every 5th item rendered in the list must be an 'ad' from the database.
+
+Step 4: The Telemetry Engine (Critical for Research)
+I need exact millisecond tracking of how long a user looks at a video.
+
+Implement viewabilityConfig on the FlatList with itemVisiblePercentThreshold: 80.
+
+Use the onViewableItemsChanged callback. When an item enters the screen, capture a start timestamp. When it exits the screen, capture the end timestamp.
+
+Calculate the difference to get the exact dwell_time_ms.
+
+Silently POST this dwell_time_ms, along with the video_id and user_id, to the TelemetryLogs database table in the background.
+
+Add a "Learn More" button on 'ad' videos. If clicked, log is_ad_clicked as true.
+
+Step 5: The Interruption & Survey (Recall Test)
+
+After the user has scrolled past exactly 15 videos (which will include 3 ads), lock the feed.
+
+Display a full-screen modal with a survey question: "Which of these brands did you see today?"
+
+Provide 4 multiple-choice text buttons (1 real brand they saw, 3 fake/decoy brands).
+
+Log their answer to the database and display a "Thank You" screen to conclude the simulation.
+
+Please start by setting up the Expo framework, the database tables, and the basic routing logic first. Let me know when that is done before moving to the Video Feed UI.

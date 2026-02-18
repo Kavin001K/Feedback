@@ -1,0 +1,159 @@
+1️⃣ Database Schema Improvements (Research-Grade)
+Your current schema is good, but for behavioral experiments we need more granularity.
+🔹 Add Feed Session Table
+Right now you log telemetry per video, but not per session.
+Add:
+CREATE TABLE feed_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id),
+    condition VARCHAR(50), -- e.g. high_velocity or low_velocity
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP
+);
+Why?
+You’ll likely want:
+• A/B testing (high vs low velocity)
+• Session duration analysis
+• Drop-off rates
+Without sessions, your telemetry analysis will be messy.
+🔹 Improve TelemetryLogs Table
+Add:
+ALTER TABLE telemetry_logs
+ADD COLUMN session_id UUID REFERENCES feed_sessions(id),
+ADD COLUMN scroll_index INTEGER,
+ADD COLUMN visible_percent INTEGER;
+Why?
+• scroll_index lets you measure fatigue effects
+• visible_percent helps validate dwell-time accuracy
+• session_id allows grouped analytics
+🔹 Add Brand Column to Videos
+For recall experiment:
+ALTER TABLE videos
+ADD COLUMN brand_name VARCHAR(100);
+Otherwise you cannot programmatically generate the recall question.
+2️⃣ Telemetry Engine Improvements (Critical)
+Your dwell time logic is good, but here's what most research apps miss:
+🔹 Problem: Scroll momentum distortions
+If a user flick-scrolls fast, viewability callbacks may fire briefly.
+Solution:
+Add a minimum threshold filter:
+if (dwellTime > 300) {
+  // log telemetry
+}
+Anything under 300ms = accidental exposure.
+🔹 Track Scroll Velocity
+You want to measure feed velocity impact.
+Add:
+onScroll={(e) => {
+  const velocity = e.nativeEvent.velocity?.y;
+}}
+Log velocity in telemetry.
+Add column:
+ALTER TABLE telemetry_logs
+ADD COLUMN scroll_velocity FLOAT;
+Now you can correlate:
+• velocity vs recall
+• velocity vs ad clicks
+• velocity vs dwell time
+That’s powerful.
+3️⃣ Experimental Design Improvements
+Right now you hardcode every 5th video as ad.
+That’s good.
+But for real research, you need controlled conditions.
+🔹 Add Condition Randomization
+On user creation:
+Randomly assign:
+condition = Math.random() > 0.5 ? "high_velocity" : "low_velocity";
+Store in:
+feed_sessions.condition
+Then:
+• High velocity → preload shorter videos
+• Low velocity → preload longer videos
+Now your study becomes a real A/B experiment.
+🔹 Add Random Ad Rotation
+Instead of always fixed ad:
+• Randomize which brand appears in which ad slot
+• But guarantee exactly 3 ads in first 15
+This avoids positional bias.
+4️⃣ Feed Architecture Improvements
+🔹 Use FlashList Instead of FlatList
+For TikTok-style research app:
+FlashList gives:
+• Lower dropped frames
+• Better memory usage
+• More stable viewability tracking
+Install:
+npm install @shopify/flash-list
+And use:
+estimatedItemSize={height}
+For research, stability > simplicity.
+🔹 Use Paging + Snap
+Add:
+pagingEnabled
+decelerationRate="fast"
+snapToInterval={height}
+snapToAlignment="start"
+This ensures one full-screen video per scroll.
+Prevents half-visible distortion.
+5️⃣ Data Integrity & Anti-Bias Improvements
+This is where real research apps fail.
+🔹 Prevent Back Scroll Manipulation
+After 15 videos:
+Lock scroll completely.
+Add:
+scrollEnabled={sessionActive}
+Do NOT allow revisiting earlier ads before survey.
+🔹 Add Exposure Confirmation
+Before survey:
+Verify:
+• Exactly 3 ads were logged
+• At least 300ms dwell on each
+If not, continue feed until valid exposure achieved.
+This ensures your recall data isn’t garbage.
+🔹 Add Background Event Logging
+Log:
+• App minimized
+• App closed
+• Screen inactive
+Use:
+import { AppState } from "react-native";
+Add:
+CREATE TABLE app_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id),
+    event_type VARCHAR(50),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+Now you can exclude interrupted sessions.
+6️⃣ Survey Improvements
+Right now:
+You ask 1 question.
+Better approach:
+🔹 Two Question Recall
+Brand recognition (multiple choice)
+Confidence rating (1–5 scale)
+Add:
+ALTER TABLE survey_responses
+ADD COLUMN confidence INTEGER;
+Confidence score makes your data significantly stronger.
+7️⃣ Analytics-Ready Indexing
+Add performance indexes:
+CREATE INDEX idx_telemetry_user ON telemetry_logs(user_id);
+CREATE INDEX idx_telemetry_video ON telemetry_logs(video_id);
+CREATE INDEX idx_session_user ON feed_sessions(user_id);
+Without indexes, research queries will be slow.
+8️⃣ Security Improvement
+Even though this is an experiment:
+Add:
+• Basic rate limiting
+• Simple API key header validation
+Otherwise someone could spam telemetry endpoints.
+9️⃣ Optional: Advanced Research Feature
+If you want publication-level data:
+Track:
+• Time to first scroll
+• Scroll hesitation duration
+• Replay count per video
+• Ad click dwell time separately
+These turn ScrollLab into:
+A full cognitive behavioral analytics engine.
