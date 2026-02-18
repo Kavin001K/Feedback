@@ -60,24 +60,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contentVideos = await getVideosByTopics(topics);
       const ads = await getAdVideos();
 
-      const shuffled = contentVideos.sort(() => Math.random() - 0.5);
-      const shuffledAds = ads.sort(() => Math.random() - 0.5);
+      const shuffled = contentVideos.sort(() => Math.random() - 0.5).slice(0, 12);
+      const shuffledAds = ads.sort(() => Math.random() - 0.5).slice(0, 3);
 
       const feed: any[] = [];
       let contentIdx = 0;
       let adIdx = 0;
 
-      for (let i = 0; i < 18; i++) {
-        if (i === 4 || i === 9 || i === 14) {
-          if (adIdx < shuffledAds.length) {
-            feed.push({ ...shuffledAds[adIdx], feedIndex: i });
-            adIdx++;
-          }
-        } else {
-          if (contentIdx < shuffled.length) {
-            feed.push({ ...shuffled[contentIdx % shuffled.length], feedIndex: i });
-            contentIdx++;
-          }
+      for (let i = 0; i < 15; i++) {
+        if ((i === 4 || i === 9 || i === 14) && adIdx < shuffledAds.length) {
+          feed.push({ ...shuffledAds[adIdx], feedIndex: i });
+          adIdx++;
+        } else if (shuffled.length > 0) {
+          feed.push({ ...shuffled[contentIdx % shuffled.length], feedIndex: i });
+          contentIdx++;
         }
       }
 

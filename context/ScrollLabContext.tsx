@@ -1,4 +1,13 @@
-import React, { createContext, useContext, useState, useMemo, ReactNode, useRef, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  ReactNode,
+  useRef,
+  useCallback,
+  useEffect,
+} from "react";
 import { apiRequest } from "@/lib/query-client";
 
 interface VideoItem {
@@ -20,6 +29,7 @@ interface TelemetryEntry {
   scrollIndex: number;
   visiblePercent: number;
   scrollVelocity: number | null;
+  swipeLatencyMs?: number | null;
 }
 
 interface UserProfile {
@@ -46,7 +56,7 @@ interface ScrollLabContextValue {
   logAdClick: (videoId: string, scrollIndex: number) => void;
   logEvent: (eventType: string) => void;
   endSession: () => void;
-  submitSurvey: (selectedBrand: string, confidence: number) => Promise<void>;
+  submitSurvey: (selectedBrand: string, correctBrand: string, confidence: number) => Promise<void>;
 }
 
 const ScrollLabContext = createContext<ScrollLabContextValue | null>(null);
@@ -60,7 +70,7 @@ export function ScrollLabProvider({ children }: { children: ReactNode }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isSessionActive, setIsSessionActive] = useState(true);
   const telemetryQueue = useRef<TelemetryEntry[]>([]);
-  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const adBrandsShown = useMemo(() => {
     return feed
@@ -123,8 +133,6 @@ export function ScrollLabProvider({ children }: { children: ReactNode }) {
         userId,
         sessionId,
       });
-      if (flushTimer.current) clearTimeout(flushTimer.current);
-      flushTimer.current = setTimeout(flushTelemetry, 2000);
     },
     [userId, sessionId, flushTelemetry],
   );
@@ -160,6 +168,10 @@ export function ScrollLabProvider({ children }: { children: ReactNode }) {
 
   const endSession = useCallback(() => {
     setIsSessionActive(false);
+    if (flushInterval.current) {
+      clearInterval(flushInterval.current);
+      flushInterval.current = null;
+    }
     flushTelemetry();
     if (sessionId) {
       apiRequest("POST", `/api/sessions/${sessionId}/end`).catch(console.error);
@@ -167,9 +179,8 @@ export function ScrollLabProvider({ children }: { children: ReactNode }) {
   }, [sessionId, flushTelemetry]);
 
   const submitSurvey = useCallback(
-    async (selectedBrand: string, confidence: number) => {
+    async (selectedBrand: string, correctBrand: string, confidence: number) => {
       if (!userId || !sessionId) return;
-      const correctBrand = adBrandsShown[0] || "";
       const isCorrect =
         selectedBrand.toLowerCase() === correctBrand.toLowerCase();
       await apiRequest("POST", "/api/survey", {
@@ -181,8 +192,27 @@ export function ScrollLabProvider({ children }: { children: ReactNode }) {
         confidence,
       });
     },
-    [userId, sessionId, adBrandsShown],
+    [userId, sessionId],
   );
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (flushInterval.current) clearInterval(flushInterval.current);
+    flushInterval.current = setInterval(() => {
+      flushTelemetry();
+    }, 10000);
+
+    return () => {
+      if (flushInterval.current) clearInterval(flushInterval.current);
+      flushInterval.current = null;
+    };
+  }, [sessionId, flushTelemetry]);
+
+  useEffect(() => {
+    return () => {
+      flushTelemetry();
+    };
+  }, [flushTelemetry]);
 
   const value = useMemo(
     () => ({

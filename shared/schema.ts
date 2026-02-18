@@ -51,6 +51,7 @@ export const telemetryLogs = pgTable("telemetry_logs", {
   scrollIndex: integer("scroll_index"),
   visiblePercent: integer("visible_percent"),
   scrollVelocity: real("scroll_velocity"),
+  swipeLatencyMs: integer("swipe_latency_ms"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 

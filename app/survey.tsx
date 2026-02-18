@@ -44,13 +44,18 @@ export default function SurveyScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
+  const targetBrand = useMemo(() => {
+    if (adBrandsShown.length === 0) return "Unknown Brand";
+    const randomIndex = Math.floor(Math.random() * adBrandsShown.length);
+    return adBrandsShown[randomIndex];
+  }, [adBrandsShown]);
+
   const brandChoices = useMemo(() => {
-    const realBrand = adBrandsShown[0] || "Unknown Brand";
     const decoys = shuffle(
       DECOY_BRANDS.filter((b) => !adBrandsShown.includes(b)),
     ).slice(0, 3);
-    return shuffle([realBrand, ...decoys]);
-  }, [adBrandsShown]);
+    return shuffle([targetBrand, ...decoys]);
+  }, [targetBrand, adBrandsShown]);
 
   const handleBrandSelect = (brand: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -71,7 +76,7 @@ export default function SurveyScreen() {
   const handleSubmit = async () => {
     if (!selectedBrand || confidence === 0) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await submitSurvey(selectedBrand, confidence);
+    await submitSurvey(selectedBrand, targetBrand, confidence);
     router.replace("/complete");
   };
 

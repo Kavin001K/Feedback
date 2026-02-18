@@ -1,17 +1,17 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect } from "react";
 import {
   StyleSheet,
   View,
   Text,
   Pressable,
   Dimensions,
-  Platform,
   ActivityIndicator,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
+import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 
@@ -24,18 +24,19 @@ interface VideoCardProps {
   topic: string;
   feedIndex: number;
   isActive: boolean;
+  shouldRenderVideo: boolean;
   onAdClick: () => void;
 }
 
-export default function VideoCard({
+const THUMBNAIL_PLACEHOLDER = "https://dummyimage.com/1080x1920/0b0b0b/ffffff.jpg&text=ScrollLab";
+
+function ActiveVideo({
   videoUrl,
-  type,
-  brandName,
-  topic,
-  feedIndex,
   isActive,
-  onAdClick,
-}: VideoCardProps) {
+}: {
+  videoUrl: string;
+  isActive: boolean;
+}) {
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
     p.volume = 0;
@@ -49,6 +50,26 @@ export default function VideoCard({
     }
   }, [isActive, player]);
 
+  return (
+    <VideoView
+      player={player}
+      style={styles.video}
+      nativeControls={false}
+      contentFit="cover"
+    />
+  );
+}
+
+export default function VideoCard({
+  videoUrl,
+  type,
+  brandName,
+  topic,
+  feedIndex,
+  isActive,
+  shouldRenderVideo,
+  onAdClick,
+}: VideoCardProps) {
   const handleAdClick = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onAdClick();
@@ -58,12 +79,16 @@ export default function VideoCard({
 
   return (
     <View style={styles.container}>
-      <VideoView
-        player={player}
-        style={styles.video}
-        nativeControls={false}
-        contentFit="cover"
-      />
+      {shouldRenderVideo ? (
+        <ActiveVideo videoUrl={videoUrl} isActive={isActive} />
+      ) : (
+        <Image
+          source={{ uri: THUMBNAIL_PLACEHOLDER }}
+          style={styles.video}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+        />
+      )}
 
       <LinearGradient
         colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)"]}
@@ -130,7 +155,7 @@ export default function VideoCard({
         </View>
       </View>
 
-      {!isActive && (
+      {!isActive && shouldRenderVideo && (
         <View style={styles.pauseOverlay}>
           <ActivityIndicator size="large" color={Colors.dark.primary} />
         </View>

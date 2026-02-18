@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  FlatList,
   Dimensions,
   AppState,
   Platform,
@@ -11,6 +10,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn } from "react-native-reanimated";
@@ -52,7 +52,9 @@ export default function FeedScreen() {
   const scrollVelocityRef = useRef<number>(0);
   const videosViewed = useRef<number>(0);
   const adExposures = useRef<Map<string, number>>(new Map());
-  const flatListRef = useRef<FlatList>(null);
+  const flashListRef = useRef<FlashList<FeedItem>>(null);
+  const lastViewStartRef = useRef<number | null>(null);
+  const currentSwipeLatencyRef = useRef<number | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -73,25 +75,28 @@ export default function FeedScreen() {
       }
     });
     return () => sub.remove();
-  }, [logEvent]);
+  }, [logEvent, flushCurrentDwell]);
 
   const flushCurrentDwell = useCallback(() => {
     if (currentViewId.current && feed.length > 0) {
       const dwellMs = Date.now() - viewStartTime.current;
       const item = feed.find((f) => f.id === currentViewId.current);
-      if (item && dwellMs >= 300) {
-        logDwellTime({
-          videoId: item.id,
-          dwellTimeMs: dwellMs,
-          isAdClicked: false,
-          scrollIndex: item.feedIndex,
-          visiblePercent: 80,
-          scrollVelocity: scrollVelocityRef.current,
-        });
+      if (item) {
+        if (dwellMs >= 300) {
+          logDwellTime({
+            videoId: item.id,
+            dwellTimeMs: dwellMs,
+            isAdClicked: false,
+            scrollIndex: item.feedIndex,
+            visiblePercent: 80,
+            scrollVelocity: scrollVelocityRef.current,
+            swipeLatencyMs: currentSwipeLatencyRef.current,
+          });
 
-        if (item.type === "ad" && item.brandName) {
-          const prev = adExposures.current.get(item.brandName) || 0;
-          adExposures.current.set(item.brandName, prev + dwellMs);
+          if (item.type === "ad" && item.brandName) {
+            const prev = adExposures.current.get(item.brandName) || 0;
+            adExposures.current.set(item.brandName, prev + dwellMs);
+          }
         }
       }
     }
@@ -106,17 +111,26 @@ export default function FeedScreen() {
       if (viewableItems.length > 0) {
         const visibleItem = viewableItems[0].item as FeedItem;
 
-        if (currentViewId.current && currentViewId.current !== visibleItem.id) {
+        const isNewItem = currentViewId.current !== visibleItem.id;
+        if (currentViewId.current && isNewItem) {
           flushCurrentDwell();
         }
 
+        if (!isNewItem) return;
+
+        const now = Date.now();
+        currentSwipeLatencyRef.current = lastViewStartRef.current
+          ? now - lastViewStartRef.current
+          : null;
+        lastViewStartRef.current = now;
+
         currentViewId.current = visibleItem.id;
-        viewStartTime.current = Date.now();
+        viewStartTime.current = now;
         const idx = visibleItem.feedIndex;
         setCurrentIndex(idx);
         videosViewed.current = Math.max(videosViewed.current, idx + 1);
 
-        if (videosViewed.current >= 16) {
+        if (videosViewed.current >= 15) {
           flushCurrentDwell();
           endSession();
           setTimeout(() => {
@@ -143,7 +157,7 @@ export default function FeedScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item, index }: { item: FeedItem; index: number }) => (
+    ({ item }: { item: FeedItem }) => (
       <VideoCard
         videoUrl={item.videoUrl}
         type={item.type}
@@ -151,18 +165,18 @@ export default function FeedScreen() {
         topic={item.topic}
         feedIndex={item.feedIndex}
         isActive={currentIndex === item.feedIndex}
+        shouldRenderVideo={item.feedIndex === currentIndex || item.feedIndex === currentIndex + 1}
         onAdClick={() => handleAdClick(item.id, item.feedIndex)}
       />
     ),
     [currentIndex, handleAdClick],
   );
 
-  const getItemLayout = useCallback(
-    (_: any, index: number) => ({
-      length: height,
-      offset: height * index,
-      index,
-    }),
+  const overrideItemLayout = useCallback(
+    (layout: { size: number; span?: number }, _: FeedItem, __: number) => {
+      layout.size = height;
+      layout.span = 1;
+    },
     [],
   );
 
@@ -184,27 +198,23 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      <FlatList
-        ref={flatListRef}
-        data={feed}
-        renderItem={renderItem}
-        keyExtractor={(item) => `${item.id}-${item.feedIndex}`}
-        pagingEnabled
-        showsVerticalScrollIndicator={false}
-        snapToInterval={height}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        getItemLayout={getItemLayout}
-        viewabilityConfig={viewabilityConfig}
-        onViewableItemsChanged={onViewableItemsChanged}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        scrollEnabled={isSessionActive}
-        removeClippedSubviews={Platform.OS !== "web"}
-        maxToRenderPerBatch={3}
-        windowSize={3}
-        initialNumToRender={2}
-      />
+      <View style={{ flex: 1 }}>
+        <FlashList
+          ref={flashListRef}
+          data={feed}
+          renderItem={renderItem}
+          keyExtractor={(item) => `${item.id}-${item.feedIndex}`}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          estimatedItemSize={height}
+          overrideItemLayout={overrideItemLayout}
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          scrollEnabled={isSessionActive}
+        />
+      </View>
 
       <View style={[styles.progressBar, { bottom: Platform.OS === "web" ? 34 : insets.bottom + 8 }]}>
         <View style={styles.progressTrack}>
