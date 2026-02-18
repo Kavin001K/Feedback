@@ -4,6 +4,7 @@ import {
   createUser,
   getUser,
   getVideosByTopics,
+  getVideosByVelocity,
   getAdVideos,
   createFeedSession,
   endFeedSession,
@@ -57,11 +58,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Topics required" });
       }
 
-      const contentVideos = await getVideosByTopics(topics);
-      const ads = await getAdVideos();
+      const user = userId ? await getUser(userId) : null;
+      const condition = user?.condition || "low_velocity";
+      const expectedVelocity = condition === "high_velocity" ? "high" : "low";
+
+      let contentVideos = await getVideosByTopics(topics, condition);
+      if (contentVideos.length < 12) {
+        const velocityPool = await getVideosByVelocity(condition);
+        const byId = new Set(contentVideos.map((v) => v.id));
+        for (const v of velocityPool) {
+          if (!byId.has(v.id)) {
+            contentVideos.push(v);
+          }
+          if (contentVideos.length >= 12) break;
+        }
+      }
+
+      const allAds = await getAdVideos();
+      const ads = allAds.filter((ad) => ad.velocityTag === expectedVelocity);
 
       const shuffled = contentVideos.sort(() => Math.random() - 0.5).slice(0, 12);
-      const shuffledAds = ads.sort(() => Math.random() - 0.5).slice(0, 3);
+      const shuffledAds = (ads.length > 0 ? ads : allAds)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3);
 
       const feed: any[] = [];
       let contentIdx = 0;
@@ -77,8 +96,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const user = userId ? await getUser(userId) : null;
-      const condition = user?.condition || "low_velocity";
       const session = await createFeedSession({ userId, condition });
 
       res.json({ feed, sessionId: session.id, condition });

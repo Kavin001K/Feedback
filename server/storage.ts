@@ -43,13 +43,34 @@ export async function getUser(id: string): Promise<User | undefined> {
   return user;
 }
 
-export async function getVideosByTopics(topics: string[], type: string = "content"): Promise<Video[]> {
-  return db.select().from(videos).where(
-    and(
-      inArray(videos.topic, topics),
-      eq(videos.type, type),
-    )
-  );
+export async function getVideosByTopics(
+  topics: string[],
+  condition: string,
+  type: string = "content",
+): Promise<Video[]> {
+  const velocity = condition === "high_velocity" ? "high" : "low";
+
+  return db
+    .select()
+    .from(videos)
+    .where(
+      and(
+        inArray(videos.topic, topics),
+        eq(videos.type, type),
+        eq(videos.velocityTag, velocity),
+      ),
+    );
+}
+
+export async function getVideosByVelocity(
+  condition: string,
+  type: string = "content",
+): Promise<Video[]> {
+  const velocity = condition === "high_velocity" ? "high" : "low";
+  return db
+    .select()
+    .from(videos)
+    .where(and(eq(videos.type, type), eq(videos.velocityTag, velocity)));
 }
 
 export async function getAdVideos(): Promise<Video[]> {
