@@ -26,20 +26,21 @@ const pool = new pg.Pool({
 
 export const db = drizzle(pool);
 
-export async function createUser(data: {
-  name?: string;
-  email?: string;
-  phone?: string;
-  dateOfBirth?: string;
-  consentGiven: boolean;
-  condition: string;
-}): Promise<User> {
+export async function createUser(data: { deviceUuid: string; condition: string }): Promise<User> {
+  // If device already exists, return it to avoid duplicates
+  const existing = await getUserByDevice(data.deviceUuid);
+  if (existing) return existing;
   const [user] = await db.insert(users).values(data).returning();
   return user;
 }
 
 export async function getUser(id: string): Promise<User | undefined> {
   const [user] = await db.select().from(users).where(eq(users.id, id));
+  return user;
+}
+
+export async function getUserByDevice(deviceUuid: string): Promise<User | undefined> {
+  const [user] = await db.select().from(users).where(eq(users.deviceUuid, deviceUuid));
   return user;
 }
 

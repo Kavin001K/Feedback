@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -8,37 +7,41 @@ import {
   boolean,
   real,
   text,
-  date,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const videoTypeEnum = pgEnum("video_type", ["content", "ad"]);
+export const velocityEnum = pgEnum("velocity_enum", ["high", "low"]);
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  name: varchar("name", { length: 200 }),
-  email: varchar("email", { length: 300 }),
-  phone: varchar("phone", { length: 50 }),
-  dateOfBirth: date("date_of_birth"),
-  consentGiven: boolean("consent_given").notNull().default(false),
+  deviceUuid: uuid("device_uuid").notNull(),
   condition: varchar("condition", { length: 50 }).notNull().default("low_velocity"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const videos = pgTable("videos", {
   id: uuid("id").primaryKey().defaultRandom(),
-  type: varchar("type", { length: 20 }).notNull().default("content"),
-  velocityTag: varchar("velocity_tag", { length: 20 }).notNull().default("low"),
+  type: videoTypeEnum("type").notNull().default("content"),
+  velocityTag: velocityEnum("velocity_tag").notNull().default("low"),
   topic: varchar("topic", { length: 100 }).notNull(),
   videoUrl: text("video_url").notNull(),
   brandName: varchar("brand_name", { length: 100 }),
+  durationMs: integer("duration_ms"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const feedSessions = pgTable("feed_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id).notNull(),
   condition: varchar("condition", { length: 50 }).notNull(),
-  startedAt: timestamp("started_at").defaultNow().notNull(),
-  endedAt: timestamp("ended_at"),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  totalScrolls: integer("total_scrolls").default(0),
+  totalAdsSeen: integer("total_ads_seen").default(0),
+  completed: boolean("completed").default(false),
 });
 
 export const telemetryLogs = pgTable("telemetry_logs", {
@@ -52,7 +55,7 @@ export const telemetryLogs = pgTable("telemetry_logs", {
   visiblePercent: integer("visible_percent"),
   scrollVelocity: real("scroll_velocity"),
   swipeLatencyMs: integer("swipe_latency_ms"),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  timestamp: timestamp("timestamp", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const appEvents = pgTable("app_events", {
@@ -60,7 +63,7 @@ export const appEvents = pgTable("app_events", {
   userId: uuid("user_id").references(() => users.id).notNull(),
   sessionId: uuid("session_id").references(() => feedSessions.id),
   eventType: varchar("event_type", { length: 50 }).notNull(),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  timestamp: timestamp("timestamp", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const surveyResponses = pgTable("survey_responses", {
@@ -71,11 +74,11 @@ export const surveyResponses = pgTable("survey_responses", {
   correctBrand: varchar("correct_brand", { length: 100 }).notNull(),
   isCorrect: boolean("is_correct").notNull(),
   confidence: integer("confidence"),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  timestamp: timestamp("timestamp", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
-export const insertVideoSchema = createInsertSchema(videos).omit({ id: true });
+export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true });
 export const insertTelemetrySchema = createInsertSchema(telemetryLogs).omit({ id: true, timestamp: true });
 export const insertFeedSessionSchema = createInsertSchema(feedSessions).omit({ id: true, startedAt: true });
 export const insertAppEventSchema = createInsertSchema(appEvents).omit({ id: true, timestamp: true });

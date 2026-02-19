@@ -19,6 +19,7 @@ import { useScrollLab } from "@/context/ScrollLabContext";
 import VideoCard from "@/components/VideoCard";
 
 const { width, height } = Dimensions.get("window");
+const MIN_DWELL_MS = 300;
 
 interface FeedItem {
   id: string;
@@ -47,14 +48,22 @@ export default function FeedScreen() {
   } = useScrollLab();
 
   const [isLoading, setIsLoading] = useState(true);
-  const viewStartTime = useRef<number>(Date.now());
-  const currentViewId = useRef<string | null>(null);
+  const exposureMap = useRef<
+    Record<
+      string,
+      {
+        startTime: number;
+        scrollIndex: number;
+        velocity: number;
+        swipeLatencyMs: number | null;
+      }
+    >
+  >({});
+  const lastExitTimeRef = useRef<number | null>(null);
   const scrollVelocityRef = useRef<number>(0);
   const videosViewed = useRef<number>(0);
   const adExposures = useRef<Map<string, number>>(new Map());
   const flashListRef = useRef<FlashList<FeedItem>>(null);
-  const lastViewStartRef = useRef<number | null>(null);
-  const currentSwipeLatencyRef = useRef<number | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -68,38 +77,47 @@ export default function FeedScreen() {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "background" || state === "inactive") {
         logEvent("app_backgrounded");
-        flushCurrentDwell();
+        flushAllExposures();
       } else if (state === "active") {
         logEvent("app_foregrounded");
-        viewStartTime.current = Date.now();
       }
     });
     return () => sub.remove();
-  }, [logEvent, flushCurrentDwell]);
+  }, [logEvent]);
 
-  const flushCurrentDwell = useCallback(() => {
-    if (currentViewId.current && feed.length > 0) {
-      const dwellMs = Date.now() - viewStartTime.current;
-      const item = feed.find((f) => f.id === currentViewId.current);
-      if (item) {
-        if (dwellMs >= 300) {
-          logDwellTime({
-            videoId: item.id,
-            dwellTimeMs: dwellMs,
-            isAdClicked: false,
-            scrollIndex: item.feedIndex,
-            visiblePercent: 80,
-            scrollVelocity: scrollVelocityRef.current,
-            swipeLatencyMs: currentSwipeLatencyRef.current,
-          });
+  useEffect(() => {
+    return () => {
+      flushAllExposures();
+      endSession();
+    };
+  }, [flushAllExposures, endSession]);
 
-          if (item.type === "ad" && item.brandName) {
-            const prev = adExposures.current.get(item.brandName) || 0;
-            adExposures.current.set(item.brandName, prev + dwellMs);
-          }
+  const flushAllExposures = useCallback(() => {
+    const now = performance.now();
+    const entries = Object.entries(exposureMap.current);
+    entries.forEach(([videoId, exposure]) => {
+      const dwellMs = Math.floor(now - exposure.startTime);
+      const item = feed.find((f) => f.id === videoId);
+      if (!item) return;
+      if (dwellMs >= MIN_DWELL_MS) {
+        logDwellTime({
+          videoId: item.id,
+          dwellTimeMs: dwellMs,
+          isAdClicked: false,
+          scrollIndex: exposure.scrollIndex,
+          visiblePercent: 80,
+          scrollVelocity: exposure.velocity,
+          swipeLatencyMs: exposure.swipeLatencyMs,
+        });
+
+        if (item.type === "ad" && item.brandName) {
+          const prev = adExposures.current.get(item.brandName) || 0;
+          adExposures.current.set(item.brandName, prev + dwellMs);
         }
       }
-    }
+      delete exposureMap.current[videoId];
+      lastExitTimeRef.current = now;
+    });
   }, [feed, logDwellTime]);
 
   const viewabilityConfig = useRef({
@@ -107,36 +125,59 @@ export default function FeedScreen() {
   }).current;
 
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0) {
-        const visibleItem = viewableItems[0].item as FeedItem;
+    ({ changed }: { changed: ViewToken[] }) => {
+      changed.forEach((token) => {
+        const item = token.item as FeedItem;
+        if (!item) return;
 
-        const isNewItem = currentViewId.current !== visibleItem.id;
-        if (currentViewId.current && isNewItem) {
-          flushCurrentDwell();
+        if (token.isViewable) {
+          const now = performance.now();
+          const swipeLatencyMs = lastExitTimeRef.current
+            ? Math.floor(now - lastExitTimeRef.current)
+            : null;
+
+          exposureMap.current[item.id] = {
+            startTime: now,
+            scrollIndex: item.feedIndex,
+            velocity: scrollVelocityRef.current,
+            swipeLatencyMs,
+          };
+
+          setCurrentIndex(item.feedIndex);
+          videosViewed.current = Math.max(videosViewed.current, item.feedIndex + 1);
+        } else {
+          const exposure = exposureMap.current[item.id];
+          if (!exposure) return;
+          const endTime = performance.now();
+          const dwellMs = Math.floor(endTime - exposure.startTime);
+          if (dwellMs >= MIN_DWELL_MS) {
+            logDwellTime({
+              videoId: item.id,
+              dwellTimeMs: dwellMs,
+              isAdClicked: false,
+              scrollIndex: exposure.scrollIndex,
+              visiblePercent: 80,
+              scrollVelocity: exposure.velocity,
+              swipeLatencyMs: exposure.swipeLatencyMs,
+            });
+
+            if (item.type === "ad" && item.brandName) {
+              const prev = adExposures.current.get(item.brandName) || 0;
+              adExposures.current.set(item.brandName, prev + dwellMs);
+            }
+          }
+
+          delete exposureMap.current[item.id];
+          lastExitTimeRef.current = endTime;
         }
+      });
 
-        if (!isNewItem) return;
-
-        const now = Date.now();
-        currentSwipeLatencyRef.current = lastViewStartRef.current
-          ? now - lastViewStartRef.current
-          : null;
-        lastViewStartRef.current = now;
-
-        currentViewId.current = visibleItem.id;
-        viewStartTime.current = now;
-        const idx = visibleItem.feedIndex;
-        setCurrentIndex(idx);
-        videosViewed.current = Math.max(videosViewed.current, idx + 1);
-
-        if (videosViewed.current >= 15) {
-          flushCurrentDwell();
-          endSession();
-          setTimeout(() => {
-            router.replace("/survey");
-          }, 300);
-        }
+      if (videosViewed.current >= 15) {
+        flushAllExposures();
+        endSession();
+        setTimeout(() => {
+          router.replace("/survey");
+        }, 300);
       }
     },
   ).current;

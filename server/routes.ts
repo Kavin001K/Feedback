@@ -24,14 +24,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users", async (req, res) => {
     try {
-      const { name, email, phone, dateOfBirth, consentGiven } = req.body;
+      const { deviceUuid } = req.body;
+      if (!deviceUuid) {
+        return res.status(400).json({ error: "deviceUuid required" });
+      }
       const condition = Math.random() > 0.5 ? "high_velocity" : "low_velocity";
       const user = await createUser({
-        name: name || null,
-        email: email || null,
-        phone: phone || null,
-        dateOfBirth: dateOfBirth || null,
-        consentGiven: consentGiven || false,
+        deviceUuid,
         condition,
       });
       res.json(user);

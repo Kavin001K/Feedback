@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
+import * as Crypto from "expo-crypto";
 import { apiRequest } from "@/lib/query-client";
 
 interface VideoItem {
@@ -33,10 +34,11 @@ interface TelemetryEntry {
 }
 
 interface UserProfile {
-  name: string;
-  email: string;
-  phone: string;
-  dateOfBirth: string;
+  deviceUuid?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
 }
 
 interface ScrollLabContextValue {
@@ -80,12 +82,11 @@ export function ScrollLabProvider({ children }: { children: ReactNode }) {
 
   const registerUser = useCallback(async (profile: UserProfile) => {
     try {
+      // generate a stable device UUID if not provided
+      const deviceUuid = profile.deviceUuid || Crypto.randomUUID();
+
       const res = await apiRequest("POST", "/api/users", {
-        name: profile.name,
-        email: profile.email,
-        phone: profile.phone,
-        dateOfBirth: profile.dateOfBirth,
-        consentGiven: true,
+        deviceUuid,
       });
       const user = await res.json();
       setUserId(user.id);
